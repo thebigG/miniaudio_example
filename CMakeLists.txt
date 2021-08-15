@@ -1,4 +1,7 @@
 #include_directories(miniaudio)
+project(miniaudio_example)
+
+add_compile_definitions(MINIAUDIO_IMPLEMENTATION)
 
 find_package(Qt5 REQUIRED COMPONENTS Widgets Multimedia Charts)
 add_executable(example main.cpp)
