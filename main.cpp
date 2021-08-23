@@ -2,6 +2,7 @@
 #include <QApplication>
 #include <QWidget>
 #include <memory.h>
+#include <iostream>
 
 #include <stdio.h>
 
@@ -10,7 +11,6 @@
 #define DEVICE_SAMPLE_RATE  48000
 
 /**
- * Not working properly at the moment.
  * @brief calc_peak_amplitude
  * @param pOutput
  * @param pInput
@@ -88,9 +88,9 @@ void init_audio_device_config(ma_device_config* config)
 
 }
 
-int init_audio_device(ma_device* device, ma_device_config* config)
+int init_audio_device(ma_device* device, ma_device_config* config, ma_context* context)
 {
-    if (ma_device_init(NULL, config, device) != MA_SUCCESS) {
+    if (ma_device_init(context, config, device) != MA_SUCCESS) {
         return -1;  // Failed to initialize the device.
     }
 
@@ -109,6 +109,16 @@ int init_sin_wave_config(ma_waveform* sineWave,ma_waveform_config* sineWaveConfi
      printf("%d\n", res);
      return 0;
 }
+
+ma_result init_context(ma_context_config* pConfig, ma_context* pContext, ma_uint32 backendCount)
+{
+    //FIXME:Make the backend a parameter
+    ma_backend backends[]{ma_backend_jack};
+    ma_context_init(backends, backendCount,pConfig, pContext);
+
+  return 0;
+}
+
 void quit()
 {
     printf("quit...");
@@ -116,18 +126,30 @@ void quit()
 
 int main(int argc, char** argv)
 {
+
+    std::array<ma_backend, MA_BACKEND_COUNT> backendArr;
+    size_t count = 0;
+    ma_get_enabled_backends(backendArr.data(), backendArr.size(), &count);
+
+    std::unique_ptr<ma_context> context = std::make_unique<ma_context>();
+    std::unique_ptr<ma_context_config> contextConfig = std::make_unique<ma_context_config>();
+
+    init_context(contextConfig.get(), context.get(), 1);
+
+    for (size_t i = 0; i < count; ++i) {
+        auto const backend = backendArr[i];
+        std::cout<<ma_get_backend_name(backend)<<std::endl;
+    }
+
     std::unique_ptr<ma_waveform> sineWave = std::make_unique<ma_waveform>();
     std::unique_ptr<ma_waveform_config> sineWaveConfig = std::make_unique<ma_waveform_config>();
 
-//    init_sin_wave_config(sineWave.get(), sineWaveConfig.get());
     std::unique_ptr<ma_device_config> config = std::make_unique<ma_device_config>();
     init_audio_device_config(config.get());
 
     std::unique_ptr<ma_device> device = std::make_unique<ma_device>();
 
-//    config->pUserData = sineWave.get(); // Can be accessed from the device object (device.pUserData).
-
-    init_audio_device(device.get(), config.get());
+    init_audio_device(device.get(), config.get(), context.get());
 
     QApplication a(argc, argv);
     QWidget main{};
@@ -136,6 +158,5 @@ int main(int argc, char** argv)
 
     ma_device_uninit(device.get());
 
-    quit();
    return 0;
 }
