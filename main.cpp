@@ -1,14 +1,23 @@
-#include "miniaudio/miniaudio.h"
 #include <QApplication>
+#include <QGridLayout>
+#include <QPushButton>
+#include <QSpinBox>
 #include <QWidget>
-#include <memory.h>
-#include <iostream>
 
+#include <functional>
+#include <iostream>
+#include <memory.h>
+#include <numeric>
 #include <stdio.h>
 
-#define DEVICE_FORMAT       ma_format_f32
-#define DEVICE_CHANNELS     2
-#define DEVICE_SAMPLE_RATE  48000
+#include "miniaudio/miniaudio.h"
+
+#define DEVICE_FORMAT ma_format_f32
+#define DEVICE_CHANNELS 2
+#define DEVICE_SAMPLE_RATE 48000
+#define MAX_AVG_SAMPLES 32
+
+std::vector<int> values{};
 
 /**
  * @brief calc_peak_amplitude
@@ -17,146 +26,179 @@
  * @param frameCount
  * @return
  */
-float calc_peak_amplitude(void* pOutput, const void* pInput, ma_uint32 frameCount)
-{
-        float maxValue = 0;
-        float maxAmplitude = 0x7fffffff;
-        float captureValue = 0;
-        float minAmplitude = 0;
-        uint32_t current_sample_value = 0;
+float calc_peak_amplitude(void *pOutput, const void *pInput,
+                          ma_uint32 frameCount) {
+  float maxValue = 0;
+  float maxAmplitude = 0x7fffffff;
+  float captureValue = 0;
+  float minAmplitude = 0;
+  uint32_t current_sample_value = 0;
 
-        const float * audioInput = static_cast<const float*>(pInput);
+  const float *audioInput = static_cast<const float *>(pInput);
 
-        int clipped_sample = 0;
+  int clipped_sample = 0;
 
-        std::vector<int> clips{};
+  std::vector<int> clips{};
 
-        int negative_count = 0;
-        int positive_count = 0;
+  int negative_count = 0;
+  int positive_count = 0;
 
-        for (unsigned int i = 0; i < frameCount; i++) {
+  float ranged_avg = 0;
+  for (unsigned int i = 0; i < frameCount; i++) {
 
-          current_sample_value =
-              static_cast<uint32_t>(std::abs((audioInput[i]) * (0x7fffffff)));
-          maxValue =
-              current_sample_value > maxValue ? current_sample_value : maxValue;
+    ranged_avg += ma_scale_to_range_f32(audioInput[i], 0, 1);
 
-          clipped_sample = ma_clip_f32(audioInput[i]);
+    current_sample_value =
+        static_cast<uint32_t>(std::abs((audioInput[i]) * (0x7fffffff)));
 
-          if(clipped_sample == -1)
-          {
-              negative_count += 1;
-          }
-          if(clipped_sample == 1)
-          {
-              positive_count += 1;
-          }
+    maxValue =
+        current_sample_value > maxValue ? current_sample_value : maxValue;
 
-        }
-        if(positive_count>negative_count)
-        printf("+1\n");
-        else
-            printf("-1\n");
+    clipped_sample = ma_clip_f32(audioInput[i]);
 
-        printf("pos:%d, negative:%d\n", positive_count, negative_count);
-
-        // Calculate the volume of the sound coming from the device.
-
-        maxValue = std::min(maxValue, maxAmplitude);
-        captureValue = static_cast<uint32_t>(maxValue) / maxAmplitude;
-
-        // When we say "deviceLevel", what we really mean is Peak Amplitude.
-        float deviceLevel = captureValue - minAmplitude;
-
-        return deviceLevel;
-
-}
-
-void data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
-{
-  printf("audioInput:%f\n", calc_peak_amplitude(pDevice, pInput, frameCount));
-
-}
-
-void init_audio_device_config(ma_device_config* config)
-{
-    *config = ma_device_config_init(ma_device_type_capture);
-    config->playback.format   = ma_format_f32;   // Set to ma_format_unknown to use the device's native format.
-    config->playback.channels = 2;               // Set to 0 to use the device's native channel count.
-    config->sampleRate        = 0;           // Set to 0 to use the device's native sample rate.
-    config->dataCallback      = data_callback;   // This function will be called when miniaudio needs more data.
-
-}
-
-int init_audio_device(ma_device* device, ma_device_config* config, ma_context* context)
-{
-    if (ma_device_init(context, config, device) != MA_SUCCESS) {
-        return -1;  // Failed to initialize the device.
+    if (clipped_sample == -1) {
+      negative_count += 1;
     }
+    if (clipped_sample == 1) {
+      positive_count += 1;
+    }
+  }
+  //        if(positive_count>negative_count)
+  //            printf("+1\n");
+  //        else
+  //            printf("-1\n");
 
-    ma_result res =  ma_device_start(device);     // The device is sleeping by default so you'll need to start it manually.
-    return res;
+  ranged_avg = ranged_avg / frameCount;
+
+  //        std::cout<<"ranged_avg"<<ranged_avg<<"\n"<<std::endl;
+
+  //        printf("pos:%d, negative:%d\n", positive_count, negative_count);
+
+  // Calculate the volume of the sound coming from the device.
+
+  maxValue = std::min(maxValue, maxAmplitude);
+  captureValue = static_cast<uint32_t>(maxValue) / maxAmplitude;
+
+  // When we say "deviceLevel", what we really mean is Peak Amplitude.
+  float deviceLevel = captureValue - minAmplitude;
+
+  values.insert(values.begin(), deviceLevel);
+  if (values.size() > MAX_AVG_SAMPLES) {
+    std::cout << "size-->" << values.size() << std::endl;
+    values.erase(values.end() - 1);
+    float sum = std::accumulate(values.begin(), values.end(), 0);
+    printf("%f\n", sum / MAX_AVG_SAMPLES);
+    std::cout << "size-->" << values.size() << std::endl;
+    std::cout << "last val" << values.at(values.front()) << std::endl;
+    //            MA_API void ma_copy_and_apply_volume_factor_f32(float*
+    //            pSamplesOut, const float* pSamplesIn, ma_uint64 sampleCount,
+    //            float factor);
+
+    std::cout << "sample count-->" << frameCount << std::endl;
+    //            values.clear();
+  }
+
+  return deviceLevel;
 }
 
-int init_sin_wave_config(ma_waveform* sineWave,ma_waveform_config* sineWaveConfig )
-{
-     ma_device_config deviceConfig;
-     ma_device device;
-
-     *sineWaveConfig = ma_waveform_config_init(DEVICE_FORMAT, DEVICE_CHANNELS, DEVICE_SAMPLE_RATE, ma_waveform_type_sine, 0.2, 220);
-     int res = ma_waveform_init(sineWaveConfig, sineWave);
-
-     printf("%d\n", res);
-     return 0;
+void data_callback(ma_device *pDevice, void *pOutput, const void *pInput,
+                   ma_uint32 frameCount) {
+  calc_peak_amplitude(pDevice, pInput, frameCount);
+  //  printf("audioInput:%f\n", calc_peak_amplitude(pDevice, pInput,
+  //  frameCount));
 }
 
-ma_result init_context(ma_context_config* pConfig, ma_context* pContext, ma_uint32 backendCount)
-{
-    //FIXME:Make the backend a parameter
-    ma_backend backends[]{ma_backend_jack};
-    ma_context_init(backends, backendCount,pConfig, pContext);
+void init_audio_device_config(ma_device_config *config) {
+  *config = ma_device_config_init(ma_device_type_capture);
+  config->playback.format = ma_format_f32; // Set to ma_format_unknown to use
+                                           // the device's native format.
+  config->playback.channels =
+      1;                  // Set to 0 to use the device's native channel count.
+  config->sampleRate = 0; // Set to 0 to use the device's native sample rate.
+  config->dataCallback = data_callback; // This function will be called when
+                                        // miniaudio needs more data.
+}
+
+int init_audio_device(ma_device *device, ma_device_config *config,
+                      ma_context *context) {
+  if (ma_device_init(context, config, device) != MA_SUCCESS) {
+    return -1; // Failed to initialize the device.
+  }
+
+  ma_result res =
+      ma_device_start(device); // The device is sleeping by default so you'll
+                               // need to start it manually.
+  return res;
+}
+
+int init_sin_wave_config(ma_waveform *sineWave,
+                         ma_waveform_config *sineWaveConfig) {
+  ma_device_config deviceConfig;
+  ma_device device;
+
+  *sineWaveConfig = ma_waveform_config_init(DEVICE_FORMAT, DEVICE_CHANNELS,
+                                            DEVICE_SAMPLE_RATE,
+                                            ma_waveform_type_sine, 0.2, 220);
+  int res = ma_waveform_init(sineWaveConfig, sineWave);
+
+  printf("%d\n", res);
+  return 0;
+}
+
+ma_result init_context(ma_context_config *pConfig, ma_context *pContext,
+                       ma_uint32 backendCount) {
+  // FIXME:Make the backend a parameter
+  ma_backend backends[]{ma_backend_pulseaudio};
+  ma_context_init(backends, backendCount, pConfig, pContext);
 
   return 0;
 }
 
-void quit()
-{
-    printf("quit...");
+void quit() { printf("quit..."); }
+
+void initAudioManagerUI() {
+  QWidget main{};
+  QSpinBox volumeSpinner{};
+
+  QPushButton submitButton{"Update"};
+
+  main.show();
 }
 
-int main(int argc, char** argv)
-{
+int main(int argc, char **argv) {
 
-    std::array<ma_backend, MA_BACKEND_COUNT> backendArr;
-    size_t count = 0;
-    ma_get_enabled_backends(backendArr.data(), backendArr.size(), &count);
+  std::array<ma_backend, MA_BACKEND_COUNT> backendArr;
+  size_t count = 0;
+  ma_get_enabled_backends(backendArr.data(), backendArr.size(), &count);
 
-    std::unique_ptr<ma_context> context = std::make_unique<ma_context>();
-    std::unique_ptr<ma_context_config> contextConfig = std::make_unique<ma_context_config>();
+  std::unique_ptr<ma_context> context = std::make_unique<ma_context>();
+  std::unique_ptr<ma_context_config> contextConfig =
+      std::make_unique<ma_context_config>();
 
-    init_context(contextConfig.get(), context.get(), 1);
+  init_context(contextConfig.get(), context.get(), 1);
 
-    for (size_t i = 0; i < count; ++i) {
-        auto const backend = backendArr[i];
-        std::cout<<ma_get_backend_name(backend)<<std::endl;
-    }
+  for (size_t i = 0; i < count; ++i) {
+    auto const backend = backendArr[i];
+    std::cout << ma_get_backend_name(backend) << std::endl;
+  }
 
-    std::unique_ptr<ma_waveform> sineWave = std::make_unique<ma_waveform>();
-    std::unique_ptr<ma_waveform_config> sineWaveConfig = std::make_unique<ma_waveform_config>();
+  std::unique_ptr<ma_waveform> sineWave = std::make_unique<ma_waveform>();
+  std::unique_ptr<ma_waveform_config> sineWaveConfig =
+      std::make_unique<ma_waveform_config>();
 
-    std::unique_ptr<ma_device_config> config = std::make_unique<ma_device_config>();
-    init_audio_device_config(config.get());
+  std::unique_ptr<ma_device_config> config =
+      std::make_unique<ma_device_config>();
+  init_audio_device_config(config.get());
 
-    std::unique_ptr<ma_device> device = std::make_unique<ma_device>();
+  std::unique_ptr<ma_device> device = std::make_unique<ma_device>();
 
-    init_audio_device(device.get(), config.get(), context.get());
+  init_audio_device(device.get(), config.get(), context.get());
 
-    QApplication a(argc, argv);
-    QWidget main{};
-    main.show();
-    a.exec();
+  QApplication a(argc, argv);
 
-    ma_device_uninit(device.get());
+  a.exec();
 
-   return 0;
+  ma_device_uninit(device.get());
+
+  return 0;
 }
