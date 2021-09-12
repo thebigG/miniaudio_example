@@ -36,13 +36,6 @@ float calc_peak_amplitude(void *pOutput, const void *pInput,
 
   const float *audioInput = static_cast<const float *>(pInput);
 
-  int clipped_sample = 0;
-
-  std::vector<int> clips{};
-
-  int negative_count = 0;
-  int positive_count = 0;
-
   for (unsigned int i = 0; i < frameCount; i++) {
     current_sample_value =
         static_cast<uint32_t>(std::abs((audioInput[i]) * (0x7fffffff)));
