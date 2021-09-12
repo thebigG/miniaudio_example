@@ -43,36 +43,13 @@ float calc_peak_amplitude(void *pOutput, const void *pInput,
   int negative_count = 0;
   int positive_count = 0;
 
-  float ranged_avg = 0;
   for (unsigned int i = 0; i < frameCount; i++) {
-
-    ranged_avg += ma_scale_to_range_f32(audioInput[i], 0, 1);
-
     current_sample_value =
         static_cast<uint32_t>(std::abs((audioInput[i]) * (0x7fffffff)));
 
     maxValue =
         current_sample_value > maxValue ? current_sample_value : maxValue;
-
-    clipped_sample = ma_clip_f32(audioInput[i]);
-
-    if (clipped_sample == -1) {
-      negative_count += 1;
-    }
-    if (clipped_sample == 1) {
-      positive_count += 1;
-    }
   }
-  //        if(positive_count>negative_count)
-  //            printf("+1\n");
-  //        else
-  //            printf("-1\n");
-
-  ranged_avg = ranged_avg / frameCount;
-
-  //        std::cout<<"ranged_avg"<<ranged_avg<<"\n"<<std::endl;
-
-  //        printf("pos:%d, negative:%d\n", positive_count, negative_count);
 
   // Calculate the volume of the sound coming from the device.
 
@@ -82,38 +59,21 @@ float calc_peak_amplitude(void *pOutput, const void *pInput,
   // When we say "deviceLevel", what we really mean is Peak Amplitude.
   float deviceLevel = captureValue - minAmplitude;
 
-  values.insert(values.begin(), deviceLevel);
-  if (values.size() > MAX_AVG_SAMPLES) {
-    std::cout << "size-->" << values.size() << std::endl;
-    values.erase(values.end() - 1);
-    float sum = std::accumulate(values.begin(), values.end(), 0);
-    printf("%f\n", sum / MAX_AVG_SAMPLES);
-    std::cout << "size-->" << values.size() << std::endl;
-    std::cout << "last val" << values.at(values.front()) << std::endl;
-    //            MA_API void ma_copy_and_apply_volume_factor_f32(float*
-    //            pSamplesOut, const float* pSamplesIn, ma_uint64 sampleCount,
-    //            float factor);
-
-    std::cout << "sample count-->" << frameCount << std::endl;
-    //            values.clear();
-  }
-
   return deviceLevel;
 }
 
 void data_callback(ma_device *pDevice, void *pOutput, const void *pInput,
                    ma_uint32 frameCount) {
-  calc_peak_amplitude(pDevice, pInput, frameCount);
-  //  printf("audioInput:%f\n", calc_peak_amplitude(pDevice, pInput,
-  //  frameCount));
+    printf("audioInput:%f\n", calc_peak_amplitude(pDevice, pInput,
+    frameCount));
 }
 
 void init_audio_device_config(ma_device_config *config) {
   *config = ma_device_config_init(ma_device_type_capture);
-  config->playback.format = ma_format_f32; // Set to ma_format_unknown to use
+  config->capture.format = ma_format_f32; // Set to ma_format_unknown to use
                                            // the device's native format.
-  config->playback.channels =
-      1;                  // Set to 0 to use the device's native channel count.
+  config->capture.channels =
+      2;                  // Set to 0 to use the device's native channel count.
   config->sampleRate = 0; // Set to 0 to use the device's native sample rate.
   config->dataCallback = data_callback; // This function will be called when
                                         // miniaudio needs more data.
@@ -146,23 +106,11 @@ int init_sin_wave_config(ma_waveform *sineWave,
 }
 
 ma_result init_context(ma_context_config *pConfig, ma_context *pContext,
-                       ma_uint32 backendCount) {
-  // FIXME:Make the backend a parameter
-  ma_backend backends[]{ma_backend_pulseaudio};
+                       ma_uint32 backendCount, ma_backend backend) {
+  ma_backend backends[]{backend};
   ma_context_init(backends, backendCount, pConfig, pContext);
 
   return 0;
-}
-
-void quit() { printf("quit..."); }
-
-void initAudioManagerUI() {
-  QWidget main{};
-  QSpinBox volumeSpinner{};
-
-  QPushButton submitButton{"Update"};
-
-  main.show();
 }
 
 int main(int argc, char **argv) {
@@ -175,7 +123,7 @@ int main(int argc, char **argv) {
   std::unique_ptr<ma_context_config> contextConfig =
       std::make_unique<ma_context_config>();
 
-  init_context(contextConfig.get(), context.get(), 1);
+  init_context(contextConfig.get(), context.get(), 1, ma_backend_pulseaudio);
 
   for (size_t i = 0; i < count; ++i) {
     auto const backend = backendArr[i];
