@@ -1,6 +1,7 @@
 #include_directories(miniaudio)
 cmake_minimum_required(VERSION 3.5)
 project(example  LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 14)
 
 add_compile_definitions(MINIAUDIO_IMPLEMENTATION)
 
@@ -14,4 +15,11 @@ target_link_libraries(example Qt5::Core)
 target_link_libraries(example Qt5::Multimedia)
 target_link_libraries(example Qt5::Charts)
 
-target_link_libraries(example pthread dl)
+if(WIN32)
+    target_link_libraries(example pthread)
+
+else(WIN32)
+    target_link_libraries(example pthread dl)
+
+endif()
+

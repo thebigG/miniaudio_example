@@ -6,9 +6,25 @@
 
 #include <functional>
 #include <iostream>
-#include <memory.h>
+#include <memory>
 #include <numeric>
 #include <stdio.h>
+#include <algorithm>
+
+#include <math.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string>
+#include <iostream>
+
+// Please ALWAYS include cmath. Otherwise the Windows build breaks. No freaking idea why...
+// It complains abs(float) functions being ambiguous
+#include <cmath>
+
+#ifndef WIN32
+#include <unistd.h>
+#endif
 
 #include "miniaudio/miniaudio.h"
 
@@ -116,7 +132,7 @@ int main(int argc, char **argv) {
   std::unique_ptr<ma_context_config> contextConfig =
       std::make_unique<ma_context_config>();
 
-  init_context(contextConfig.get(), context.get(), 1, ma_backend_pulseaudio);
+  init_context(contextConfig.get(), context.get(), 1, ma_backend_wasapi);
 
   for (size_t i = 0; i < count; ++i) {
     auto const backend = backendArr[i];
