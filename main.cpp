@@ -4,15 +4,11 @@
 #include <QSpinBox>
 #include <QWidget>
 
-#include <functional>
 #include <iostream>
 #include <memory>
-#include <numeric>
+#include <vector>
 #include <stdio.h>
-#include <algorithm>
 
-#include <math.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
@@ -20,6 +16,17 @@
 
 // Please ALWAYS include cmath. Otherwise the Windows build breaks. No freaking idea why...
 // It complains abs(float) functions being ambiguous
+//This explains why: https://stackoverflow.com/a/5450536
+/**
+ * Its boils down to this: math.h is from C and was created over 10 years ago. In math.h, due to its primitive nature, the abs() function is "essentially" just for integer types and if you wanted to get the absolute value of a double, you had to use fabs().
+When C++ was created it took math.h and made it cmath. cmath is essentially math.h but improved for C++. It improved things like having to distinguish between fabs() and abs, and just made abs() for both doubles and integer types.
+In summary either:
+Use  math.h and use abs() for integers, fabs() for doubles
+or
+use cmath and just have abs for everything (easier and recommended)
+
+Hope this helps anyone who is having the same problem!
+ */
 #include <cmath>
 
 #ifndef WIN32
@@ -32,8 +39,6 @@
 #define DEVICE_CHANNELS 2
 #define DEVICE_SAMPLE_RATE 48000
 #define MAX_AVG_SAMPLES 32
-
-std::vector<int> values{};
 
 /**
  * @brief calc_peak_amplitude
@@ -54,7 +59,7 @@ float calc_peak_amplitude(void *pOutput, const void *pInput,
 
   for (unsigned int i = 0; i < frameCount; i++) {
     current_sample_value =
-        static_cast<uint32_t>(std::abs((audioInput[i]) * (0x7fffffff)));
+        static_cast<long long>(std::abs((audioInput[i]) * (0x7fffffff)));
 
     maxValue =
         current_sample_value > maxValue ? current_sample_value : maxValue;
@@ -108,34 +113,45 @@ int init_sin_wave_config(ma_waveform *sineWave,
   *sineWaveConfig = ma_waveform_config_init(DEVICE_FORMAT, DEVICE_CHANNELS,
                                             DEVICE_SAMPLE_RATE,
                                             ma_waveform_type_sine, 0.2, 220);
-  int res = ma_waveform_init(sineWaveConfig, sineWave);
+  ma_result res = ma_waveform_init(sineWaveConfig, sineWave);
 
-  printf("%d\n", res);
   return 0;
 }
 
 ma_result init_context(ma_context_config *pConfig, ma_context *pContext,
                        ma_uint32 backendCount, ma_backend backend) {
   ma_backend backends[]{backend};
-  ma_context_init(backends, backendCount, pConfig, pContext);
+  int res = ma_context_init(backends, backendCount, pConfig, pContext);
 
-  return 0;
+  return res;
+}
+
+std::vector<ma_backend> getAudioBackends()
+{
+    std::array<ma_backend, MA_BACKEND_COUNT> backendArr;
+    std::vector<ma_backend> backends{};
+    size_t count = 0;
+    ma_get_enabled_backends(backendArr.data(), backendArr.size(), &count);
+
+    for (size_t i = 0; i < count; ++i) {
+      backends.push_back(backendArr[i]);
+    }
+
+   return backends;
 }
 
 int main(int argc, char **argv) {
 
   std::array<ma_backend, MA_BACKEND_COUNT> backendArr;
   size_t count = 0;
-  ma_get_enabled_backends(backendArr.data(), backendArr.size(), &count);
 
   std::unique_ptr<ma_context> context = std::make_unique<ma_context>();
   std::unique_ptr<ma_context_config> contextConfig =
       std::make_unique<ma_context_config>();
 
-  init_context(contextConfig.get(), context.get(), 1, ma_backend_wasapi);
+  init_context(contextConfig.get(), context.get(), 1, ma_backend_null);
 
-  for (size_t i = 0; i < count; ++i) {
-    auto const backend = backendArr[i];
+  for (auto backend: getAudioBackends()) {
     std::cout << ma_get_backend_name(backend) << std::endl;
   }
 
