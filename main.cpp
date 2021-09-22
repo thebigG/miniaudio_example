@@ -126,6 +126,12 @@ ma_result init_context(ma_context_config *pConfig, ma_context *pContext,
   return res;
 }
 
+bool is_device_available(ma_device* device, ma_device_config* config,
+                         ma_context* context)
+{
+    return init_audio_device(device, config, context) == MA_SUCCESS?  true: false;
+}
+
 std::vector<ma_backend> getAudioBackends()
 {
     std::array<ma_backend, MA_BACKEND_COUNT> backendArr;
@@ -149,7 +155,7 @@ int main(int argc, char **argv) {
   std::unique_ptr<ma_context_config> contextConfig =
       std::make_unique<ma_context_config>();
 
-  init_context(contextConfig.get(), context.get(), 1, ma_backend_null);
+  init_context(contextConfig.get(), context.get(), 1, ma_backend_jack);
 
   for (auto backend: getAudioBackends()) {
     std::cout << ma_get_backend_name(backend) << std::endl;
@@ -165,7 +171,27 @@ int main(int argc, char **argv) {
 
   std::unique_ptr<ma_device> device = std::make_unique<ma_device>();
 
-  init_audio_device(device.get(), config.get(), context.get());
+//  init_audio_device(device.get(), config.get(), context.get());
+
+    //Not sure if is_device_available is the best name for this function...gotta think about that one.
+  if(is_device_available(device.get(), config.get(), context.get()))
+  {
+      std::cout<<"device is available!"<<std::endl;
+  }
+  else
+  {
+      std::cout<<"device is NOT available!"<<std::endl;
+      return -1;
+  }
+
+
+  /**
+   *To list the devices available within a particular backend's context you can do something like the following:
+   *    auto result = ma_context_enumerate_devices(mContext.get(), enumerateCallback, this);
+   *
+   *enumerateCallback callback has the following signature:
+   *enumerateCallback(ma_context* pContext, ma_device_type deviceType, const ma_device_info* pInfo, void* pUserData)
+   */
 
   QApplication a(argc, argv);
 
