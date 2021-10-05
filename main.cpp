@@ -146,6 +146,13 @@ std::vector<ma_backend> getAudioBackends()
    return backends;
 }
 
+ma_bool32 enumerateCallback(ma_context* pContext, ma_device_type deviceType, const ma_device_info* pInfo, void* pUserData)
+{
+    auto* devices = static_cast<std::vector<std::string>*>(pUserData);
+    devices->push_back(std::string{pInfo->name});
+    return 0;
+}
+
 int main(int argc, char **argv) {
 
   std::array<ma_backend, MA_BACKEND_COUNT> backendArr;
@@ -155,8 +162,36 @@ int main(int argc, char **argv) {
   std::unique_ptr<ma_context_config> contextConfig =
       std::make_unique<ma_context_config>();
 
-  init_context(contextConfig.get(), context.get(), 1, ma_backend_jack);
+  init_context(contextConfig.get(), context.get(), 1, ma_backend_pulseaudio);
 
+   unsigned int a{0};
+
+   //NOTE: I know the API is written in C, but I don't like this pointer busisness here...
+   ma_uint32* pPlaybackDeviceCount;
+   pPlaybackDeviceCount = &a;
+   ma_device_info* ppCaptureDeviceInfos;
+   ma_device_info info{};
+   ma_uint32* pCaptureDeviceCount;
+   pCaptureDeviceCount = &a;
+
+   std::cout<<"Fetching devices"<<std::endl;
+   ma_result res  = ma_context_get_devices(context.get(), nullptr, pPlaybackDeviceCount, &ppCaptureDeviceInfos, pCaptureDeviceCount);
+   if(res == MA_SUCCESS)
+   {
+       std::cout<<"Fetched devices sucessfully"<<std::endl;
+       std::cout<<"pPlaybackDeviceCount-->"<<*pCaptureDeviceCount<<std::endl;
+       for(int i =0;i<*pCaptureDeviceCount; i++)
+       {
+           std::cout<<"device-->"<<ppCaptureDeviceInfos[i].name<<std::endl;
+       }
+   }
+   else
+   {
+       std::cout<<"Something bad happended. ma_context_get_devices failed"<<std::endl;
+       return -1;
+   }
+
+   std::cout<<"Available backends(resolved at compile time)"<<std::endl;
   for (auto backend: getAudioBackends()) {
     std::cout << ma_get_backend_name(backend) << std::endl;
   }
@@ -170,32 +205,6 @@ int main(int argc, char **argv) {
   init_audio_device_config(config.get());
 
   std::unique_ptr<ma_device> device = std::make_unique<ma_device>();
-
-//  init_audio_device(device.get(), config.get(), context.get());
-
-    //Not sure if is_device_available is the best name for this function...gotta think about that one.
-  if(is_device_available(device.get(), config.get(), context.get()))
-  {
-      std::cout<<"device is available!"<<std::endl;
-  }
-  else
-  {
-      std::cout<<"device is NOT available!"<<std::endl;
-      return -1;
-  }
-
-
-  /**
-   *To list the devices available within a particular backend's context you can do something like the following:
-   *    auto result = ma_context_enumerate_devices(mContext.get(), enumerateCallback, this);
-   *
-   *enumerateCallback callback has the following signature:
-   *enumerateCallback(ma_context* pContext, ma_device_type deviceType, const ma_device_info* pInfo, void* pUserData)
-   */
-
-  QApplication a(argc, argv);
-
-  a.exec();
 
   ma_device_uninit(device.get());
 

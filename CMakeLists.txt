@@ -1,7 +1,7 @@
 #include_directories(miniaudio)
 cmake_minimum_required(VERSION 3.5)
-project(example  LANGUAGES CXX)
-set(CMAKE_CXX_STANDARD 14)
+project(example LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 20)
 
 add_compile_definitions(MINIAUDIO_IMPLEMENTATION)
 
