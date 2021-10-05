@@ -1,9 +1,3 @@
-#include <QApplication>
-#include <QGridLayout>
-#include <QPushButton>
-#include <QSpinBox>
-#include <QWidget>
-
 #include <iostream>
 #include <memory>
 #include <vector>

@@ -9,11 +9,8 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 find_package(Qt5 REQUIRED COMPONENTS Widgets Multimedia Charts)
 
-add_executable(example main.cpp audiomanager.h audiomanager.cpp audiomanagerui.h audiomanagerui.cpp)
+add_executable(example main.cpp)
 
-target_link_libraries(example Qt5::Core)
-target_link_libraries(example Qt5::Multimedia)
-target_link_libraries(example Qt5::Charts)
 
 if(WIN32)
     target_link_libraries(example pthread)
